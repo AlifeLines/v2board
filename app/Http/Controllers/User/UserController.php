@@ -32,7 +32,11 @@ class UserController extends Controller
             abort(500, '新密码不能为空');
         }
         $user = User::find($request->session()->get('id'));
-        if (!password_verify($request->input('old_password'), $user->password)) {
+        if (!Helper::multiPasswordVerify(
+            $user->password_algo,
+            $request->input('old_password'),
+            $user->password)
+        ) {
             abort(500, '旧密码有误');
         }
         $user->password = password_hash($request->input('new_password'), PASSWORD_DEFAULT);
@@ -61,7 +65,9 @@ class UserController extends Controller
                 'expired_at',
                 'balance',
                 'commission_balance',
-                'plan_id'
+                'plan_id',
+                'discount',
+                'commission_rate'
             ])
             ->first();
         $user['avatar_url'] = 'https://cdn.v2ex.com/gravatar/' . md5($user->email) . '?s=64&d=identicon';

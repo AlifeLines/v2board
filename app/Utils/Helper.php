@@ -75,4 +75,24 @@ class Helper
         }
         return "vmess://" . base64_encode(json_encode($config)) . "\r\n";
     }
+
+    public static function multiPasswordVerify($algo, $password, $hash)
+    {
+        switch($algo) {
+            case 'md5': return md5($password) === $hash;
+            case 'sha256': return hash('sha256', $password) === $hash;
+            default: return password_verify($password, $hash);
+        }
+    }
+
+    public static function emailSuffixVerify($email, $suffixs)
+    {
+        $suffix = preg_split('/@/', $email)[1];
+        if (!$suffix) return false;
+        if (!is_array($suffixs)) {
+            $suffixs = preg_split('/,/', $suffixs);
+        }
+        if (!in_array($suffix, $suffixs)) return false;
+        return true;
+    }
 }

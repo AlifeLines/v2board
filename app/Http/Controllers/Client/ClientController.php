@@ -4,8 +4,6 @@ namespace App\Http\Controllers\Client;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use App\Models\User;
-use App\Models\Plan;
 use App\Models\Server;
 use App\Utils\Helper;
 use Symfony\Component\Yaml\Yaml;
@@ -16,7 +14,8 @@ class ClientController extends Controller
     {
         $user = $request->user;
         $server = [];
-        if ($user->expired_at > time()) {
+        // account not expired and is not banned.
+        if ($user->expired_at > time() && !$user->banned) {
             $servers = Server::where('show', 1)
                 ->orderBy('name')
                 ->get();
@@ -93,6 +92,7 @@ class ClientController extends Controller
         $proxy = [];
         $proxyGroup = [];
         $proxies = [];
+        $rules = [];
         foreach ($server as $item) {
             $array = [];
             $array['name'] = $item->name;
@@ -104,6 +104,7 @@ class ClientController extends Controller
             $array['cipher'] = 'auto';
             if ($item->tls) {
                 $array['tls'] = true;
+                $array['skip-cert-verify'] = true;
             }
             if ($item->network == 'ws') {
                 $array['network'] = $item->network;
@@ -118,15 +119,34 @@ class ClientController extends Controller
             array_push($proxy, $array);
             array_push($proxies, $item->name);
         }
+
         array_push($proxyGroup, [
-            'name' => config('v2board.app_name', 'V2Board'),
+            'name' => 'auto',
+            'type' => 'url-test',
+            'proxies' => $proxies,
+            'url' => 'https://www.bing.com',
+            'interval' => 300
+        ]);
+        array_push($proxyGroup, [
+            'name' => 'fallback-auto',
+            'type' => 'fallback',
+            'proxies' => $proxies,
+            'url' => 'https://www.bing.com',
+            'interval' => 300
+        ]);
+        array_push($proxyGroup, [
+            'name' => 'select',
             'type' => 'select',
             'proxies' => $proxies
         ]);
 
+        try {
+            $rules = Yaml::parseFile(base_path() . '/resources/rules/clash.rule.yaml')['Rule'];
+        } catch (\Exception $e) {}
+
         $config = [
             'port' => 7890,
-            'socks-port' => 0,
+            'socks-port' => 7891,
             'allow-lan' => false,
             'mode' => 'Rule',
             'log-level' => 'info',
@@ -134,16 +154,9 @@ class ClientController extends Controller
             'secret' => '',
             'Proxy' => $proxy,
             'Proxy Group' => $proxyGroup,
-            'Rule' => [
-                'DOMAIN-SUFFIX,google.com,' . config('v2board.app_name', 'V2Board'),
-                'DOMAIN-KEYWORD,google,' . config('v2board.app_name', 'V2Board'),
-                'DOMAIN,google.com,' . config('v2board.app_name', 'V2Board'),
-                'DOMAIN-SUFFIX,ad.com,REJECT',
-                'IP-CIDR,127.0.0.0/8,DIRECT',
-                'GEOIP,CN,DIRECT',
-                'MATCH,' . config('v2board.app_name', 'V2Board')
-            ]
+            'Rule' => $rules
         ];
+
         return Yaml::dump($config);
     }
 }
